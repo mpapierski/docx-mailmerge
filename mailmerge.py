@@ -1,3 +1,6 @@
+import re
+import shlex
+from datetime import date, time, datetime
 from copy import deepcopy
 import warnings
 from lxml.etree import Element
@@ -51,7 +54,7 @@ class MailMerge(object):
                         name = self.__parse_instr(instr)
                         if name is None:
                             continue
-                        parent[idx] = Element('MergeField', name=name)
+                        parent[idx] = Element('MergeField', name=name, data=instr)
 
                 for parent in part.findall('.//{%(w)s}instrText/../..' % NAMESPACES):
                     children = list(parent)
@@ -84,7 +87,7 @@ class MailMerge(object):
                         if name is None:
                             continue
 
-                        parent[idx_begin] = Element('MergeField', name=name)
+                        parent[idx_begin] = Element('MergeField', name=name, data=instr_text)
 
                         # use this so we know *where* to put the replacement
                         instr_elements[0].tag = 'MergeText'
@@ -264,16 +267,112 @@ class MailMerge(object):
                 for part in parts:
                     self.__merge_field(part, field, replacement)
 
+    @classmethod
+    def eval_strftime(cls, dt, fmt):
+        def repl(m):
+            res = ''
+            pattern = m[0]
+            while pattern:
+                # Years
+                if pattern[:4] in ['yyyy', 'YYYY']:
+                    res += '%Y'
+                    pattern = pattern[4:]
+                elif pattern[:2] in ['yy', 'YY']:
+                    res += '%y'
+                    pattern = pattern[2:]
+                elif pattern[:1] in ['y', 'Y']:
+                    res += '%Y'
+                    pattern = pattern[1:]
+
+                # Months
+
+                elif pattern[:4] == 'MMMM':
+                    res += '%B'
+                    pattern = pattern[4:]
+                elif pattern[:2] == 'MM':
+                    res += '%m'
+                    pattern = pattern[2:]
+                elif pattern[:1] == 'M':
+                    # Hack for non-zero padded month
+                    res += str(dt.month)
+                    pattern = pattern[1:]
+
+                # Days
+                elif pattern[:4] == 'dddd':
+                    res += '%A'
+                    pattern = pattern[4:]
+                elif pattern[:2] == 'dd':
+                    res += '%d'
+                    pattern = pattern[2:]
+                elif pattern[:1] == 'd':
+                    # Hack for non-zero padded month
+                    res += str(dt.day)
+                    pattern = pattern[1:]
+                else:
+                    break
+            return res
+
+        if fmt[0] == '"' and fmt[-1] == '"':
+            fmt = fmt[1:-1]
+
+        fmt = re.sub(r'[dmMyY]+', repl, fmt)
+        try:
+            return dt.strftime(fmt)
+        except AttributeError:
+            return str(dt)
+
+    @classmethod
+    def eval_star(cls, data):
+        # This is similiar to what Word is doing. It uses
+        # default formats based on locale. This should be
+        # consistent behaviour.
+        if isinstance(data, (datetime, )):
+            # i.e. 08/16/1988 13:42
+            return data.strftime('%x %X')
+        elif isinstance(data, (date, )):
+            # i.e. 08/16/1988
+            return data.strftime('%x')
+        elif isinstance(data, (time, )):
+            # i.e. 13:18:00
+            return data.strftime('%X')
+        elif data is None:
+            return ''
+        else:
+            return str(data)
+
+    @classmethod
+    def eval(cls, data, code):
+        params = shlex.split(code, posix=False)
+        params = params[2:]
+        print('Eval', type(data), data, 'Params', params)
+
+        evaluated = False
+        for i, param in enumerate(params):
+            if param == '\\@':
+                data = cls.eval_strftime(data, params[i + 1])
+                evaluated = True
+            elif param == '\\*':
+                data = cls.eval_star(data)
+                evaluated = True
+
+        # According to Word lack of "\* MERGEFORMAT" in MERGEFIELD is perfectly fine
+        # so we treat lack of evaluation as \* code.
+        if not evaluated:
+            data = cls.eval_star(data)
+        return data
+
     def __merge_field(self, part, field, text):
         for mf in part.findall('.//MergeField[@name="%s"]' % field):
             children = list(mf)
+            # Original code is saved in "data" attribute
+            instr = mf.attrib['data']
             mf.clear()  # clear away the attributes
             mf.tag = '{%(w)s}r' % NAMESPACES
             mf.extend(children)
 
             nodes = []
             # preserve new lines in replacement text
-            text = text or ''  # text might be None
+            text = self.eval(text, instr)
             text_parts = text.replace('\r', '').split('\n')
             for i, text_part in enumerate(text_parts):
                 text_node = Element('{%(w)s}t' % NAMESPACES)
