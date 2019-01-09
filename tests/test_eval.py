@@ -35,9 +35,9 @@ class TestEval(TestCase):
         self.assertEqual(MailMerge.eval_strftime('foo', 'd'), 'foo')
 
     def test_eval(self):
-        self.assertEqual(MailMerge.eval_star(self.today), self.today.strftime('%x %X'))
-        self.assertEqual(MailMerge.eval_star(self.today.date()), self.today.strftime('%x'))
-        self.assertEqual(MailMerge.eval_star(self.today.time()), self.today.strftime('%X'))
+        self.assertEqual(MailMerge.eval_star(self.today, ''), self.today.strftime('%x %X'))
+        self.assertEqual(MailMerge.eval_star(self.today.date(), ''), self.today.strftime('%x'))
+        self.assertEqual(MailMerge.eval_star(self.today.time(), ''), self.today.strftime('%X'))
 
     def test_eval_none(self):
         self.assertEqual(MailMerge.eval(None, 'MAILMERGE Foo \\@ "y-MM-dd" MERGEFORMAT'), '')
@@ -46,3 +46,14 @@ class TestEval(TestCase):
         self.assertEqual(MailMerge.eval(self.today, 'MAILMERGE Foo \\* MERGEFORMAT'), self.today.strftime('%x %X'))
         self.assertEqual(MailMerge.eval(self.today, 'MAILMERGE Foo'), self.today.strftime('%x %X'))
         self.assertEqual(MailMerge.eval(self.today, 'MAILMERGE Foo \\@ "y-MM-dd" MERGEFORMAT'), '2018-07-01')
+
+    def test_parse_str_formatter(self):
+        self.assertEqual(MailMerge.eval('HeLlO WoRlD', 'MAILMERGE Foo \\* Upper MERGEFORMAT'), 'HELLO WORLD')
+        self.assertEqual(MailMerge.eval('HELLO WORLD', 'MAILMERGE Foo \\* Lower MERGEFORMAT'), 'hello world')
+        self.assertEqual(MailMerge.eval('HeLlO WoRlD', 'MAILMERGE Foo \\* Lower \\* Upper MERGEFORMAT'), 'HELLO WORLD')
+        self.assertEqual(MailMerge.eval('HeLlO WoRlD', 'MAILMERGE Foo \\* FirstCap MERGEFORMAT'), 'Hello world')
+        self.assertEqual(MailMerge.eval('HeLlO WoRlD', 'MAILMERGE Foo \\* Caps MERGEFORMAT'), 'Hello World')
+
+    def test_parse_chained(self):
+        self.assertEqual(MailMerge.eval(self.today, 'MAILMERGE Foo \\* Upper'), self.today.strftime('%x %X').upper())
+        self.assertEqual(MailMerge.eval(self.today, 'MAILMERGE Foo \\@ "MMMM" \\* Upper'), self.today.strftime('%B').upper())

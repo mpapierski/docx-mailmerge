@@ -327,23 +327,38 @@ class MailMerge(object):
             return str(dt)
 
     @classmethod
-    def eval_star(cls, data):
+    def eval_star(cls, data, option):
         # This is similiar to what Word is doing. It uses
         # default formats based on locale. This should be
         # consistent behaviour.
+        output = None
         if isinstance(data, (datetime, )):
             # i.e. 08/16/1988 13:42
-            return data.strftime('%x %X')
+            output = data.strftime('%x %X')
         elif isinstance(data, (date, )):
             # i.e. 08/16/1988
-            return data.strftime('%x')
+            output = data.strftime('%x')
         elif isinstance(data, (time, )):
             # i.e. 13:18:00
-            return data.strftime('%X')
+            output = data.strftime('%X')
         elif data is None:
-            return ''
+            output = ''
         else:
-            return str(data)
+            output = str(data)
+
+        assert output is not None
+
+        # Format
+        if option.lower() == 'upper':
+            output = output.upper()
+        elif option.lower() == 'lower':
+            output = output.lower()
+        elif option.lower() == 'firstcap':
+            output = output.capitalize()
+        elif option.lower() == 'caps':
+            output = output.title()
+
+        return output
 
     @classmethod
     def eval(cls, data, code):
@@ -355,13 +370,13 @@ class MailMerge(object):
                 data = cls.eval_strftime(data, params[i + 1])
                 evaluated = True
             elif param == '\\*':
-                data = cls.eval_star(data)
+                data = cls.eval_star(data, params[i + 1])
                 evaluated = True
 
         # According to Word lack of "\* MERGEFORMAT" in MERGEFIELD is perfectly fine
         # so we treat lack of evaluation as \* code.
         if not evaluated:
-            data = cls.eval_star(data)
+            data = cls.eval_star(data, '')
         return data
 
     def __merge_field(self, part, field, text):
