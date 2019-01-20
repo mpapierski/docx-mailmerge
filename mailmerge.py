@@ -8,6 +8,9 @@ from lxml import etree
 from zipfile import ZipFile, ZIP_DEFLATED
 import shlex
 import json
+import operator
+from functools import lru_cache
+
 
 NAMESPACES = {
     'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
@@ -53,7 +56,6 @@ class MailMerge(object):
 
                         args = self.__parse_field(instr)
                         name = self.__parse_instr(args)
-                        print('args', args)
                         if name is None:
                             name = ''
                         parent[idx] = Element('MergeField', kind=args[0].upper(), name=name, data=json.dumps(args))
@@ -119,9 +121,6 @@ class MailMerge(object):
 
     @classmethod
     def __parse_instr(cls, args):
-        # print('parse', args)
-        if args[0] != 'MERGEFIELD':
-            return None
         name = args[1]
         if name[0] == '"' and name[-1] == '"':
             name = name[1:-1]
@@ -263,6 +262,7 @@ class MailMerge(object):
          self.merge_templates(replacements, "page_break")
 
     def merge(self, parts=None, **replacements):
+
         if not parts:
             parts = self.parts.values()
 
@@ -271,7 +271,7 @@ class MailMerge(object):
                 self.merge_rows(field, replacement)
             else:
                 for part in parts:
-                    self.__merge_field(part, field, replacement)
+                    self.__merge_field(part, field, replacement, context=replacements)
 
     @classmethod
     def eval_strftime(cls, dt, fmt):
@@ -367,19 +367,94 @@ class MailMerge(object):
         return output
 
     @classmethod
-    def eval(cls, data, params):
-        print('eval', data, params)
-        params = params[2:]
-        evaluated = False
-        for i, param in enumerate(params):
-            print('param', param)
-            if param == '\\@':
-                data = cls.eval_strftime(data, params[i + 1])
-                print('evaluated', data)
-                evaluated = True
-            elif param == '\\*':
-                data = cls.eval_star(data, params[i + 1])
-                evaluated = True
+    def eval_if(cls, expr, context):
+        assert context is not None
+        return 'Foo'
+
+    @classmethod
+    def eval(cls, data, params, context=None):
+        if context is None:
+            context = {}
+        if params[0].upper() == 'MERGEFIELD':
+            evaluated = False
+            for i, param in enumerate(params):
+                if param == '\\@':
+                    data = cls.eval_strftime(data, params[i + 1])
+                    evaluated = True
+                elif param == '\\*':
+                    data = cls.eval_star(data, params[i + 1])
+                    evaluated = True
+        elif params[0].upper() == 'IF':
+            lhs, op, rhs, if_true, if_false = params[1:6]
+
+            @lru_cache(maxsize=256, typed=True)
+            def translate(text):
+                pattern = '^'
+                for c in rhs:
+                    if c == '?':
+                        pattern += '.'
+                    elif c == '*':
+                        pattern += '.*'
+                    else:
+                        pattern += re.escape(c)
+                pattern += '$'
+                return re.compile(pattern).match
+
+            def eq(lhs, rhs):
+                if isinstance(rhs, (int,)):
+                    return operator.eq(lhs, rhs)
+                else:
+                    return translate(rhs)(lhs) is not None
+
+            def ne(lhs, rhs):
+                if isinstance(rhs, (int,)):
+                    return operator.ne(lhs, rhs)
+                else:
+                    return translate(rhs)(lhs) is None
+            
+            operators = {
+                '=': eq,
+                '<>': ne,
+                '>': operator.gt,
+                '>=': operator.ge,
+                '<=': operator.le,
+                '<': operator.lt,
+            }
+
+            op = operators.get(op)
+            if op is None:
+                # Unknown operator
+                return ''
+            
+            def strip_quotes(data):
+                if data and data[0] == '"' and data[-1] == '"':
+                    return data[1:-1]
+                return data
+
+            # Strip quotes
+            lhs = strip_quotes(lhs)
+            rhs = strip_quotes(rhs)
+
+            if_true = strip_quotes(if_true)
+            if_false = strip_quotes(if_false)
+
+            # LHS is a value from context OR the LHS value itself
+            lhs = context.get(lhs, lhs)
+
+            # RHS *can* be an integer
+            if re.match(r'^-?\d+$', rhs):
+                rhs = int(rhs) 
+
+            # Use the operator to extract a valid text           
+            if op(lhs, rhs):
+                return if_true
+            else:
+                return if_false
+
+            evaluated = True
+        else:
+            assert False, params[0]
+            return ''
 
         # According to Word lack of "\* MERGEFORMAT" in MERGEFIELD is perfectly fine
         # so we treat lack of evaluation as \* code.
@@ -387,7 +462,9 @@ class MailMerge(object):
             data = cls.eval_star(data, '')
         return data
 
-    def __merge_field(self, part, field, text):
+    def __merge_field(self, part, field, text, context=None):
+        if context is None:
+            context = {}
         for mf in part.findall('.//MergeField[@name="%s"]' % field):
             children = list(mf)
             # Original code is saved in "data" attribute
@@ -399,7 +476,7 @@ class MailMerge(object):
 
             nodes = []
             # preserve new lines in replacement text
-            text = self.eval(text, instr)
+            text = self.eval(text, instr, context=context)
             text_parts = text.replace('\r', '').split('\n')
             for i, text_part in enumerate(text_parts):
                 text_node = Element('{%(w)s}t' % NAMESPACES)

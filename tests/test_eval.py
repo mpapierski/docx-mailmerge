@@ -1,6 +1,11 @@
 from unittest import TestCase
 from datetime import datetime
 from mailmerge import MailMerge
+import shlex
+
+
+def code(text):
+    return shlex.split(text, posix=False)
 
 
 class TestEval(TestCase):
@@ -40,20 +45,58 @@ class TestEval(TestCase):
         self.assertEqual(MailMerge.eval_star(self.today.time(), ''), self.today.strftime('%X'))
 
     def test_eval_none(self):
-        self.assertEqual(MailMerge.eval(None, 'MAILMERGE Foo \\@ "y-MM-dd" MERGEFORMAT'), '')
+        self.assertEqual(MailMerge.eval(None, code('MERGEFIELD Foo \\@ "y-MM-dd" MERGEFORMAT')), '')
 
     def test_parse_code(self):
-        self.assertEqual(MailMerge.eval(self.today, 'MAILMERGE Foo \\* MERGEFORMAT'), self.today.strftime('%x %X'))
-        self.assertEqual(MailMerge.eval(self.today, 'MAILMERGE Foo'), self.today.strftime('%x %X'))
-        self.assertEqual(MailMerge.eval(self.today, 'MAILMERGE Foo \\@ "y-MM-dd" MERGEFORMAT'), '2018-07-01')
+        self.assertEqual(MailMerge.eval(self.today, code('MERGEFIELD Foo \\* MERGEFORMAT')),
+                         self.today.strftime('%x %X'))
+        self.assertEqual(MailMerge.eval(self.today, code('MERGEFIELD Foo')), self.today.strftime('%x %X'))
+        self.assertEqual(MailMerge.eval(self.today, code('MERGEFIELD Foo \\@ "y-MM-dd" MERGEFORMAT')), '2018-07-01')
 
     def test_parse_str_formatter(self):
-        self.assertEqual(MailMerge.eval('HeLlO WoRlD', 'MAILMERGE Foo \\* Upper MERGEFORMAT'), 'HELLO WORLD')
-        self.assertEqual(MailMerge.eval('HELLO WORLD', 'MAILMERGE Foo \\* Lower MERGEFORMAT'), 'hello world')
-        self.assertEqual(MailMerge.eval('HeLlO WoRlD', 'MAILMERGE Foo \\* Lower \\* Upper MERGEFORMAT'), 'HELLO WORLD')
-        self.assertEqual(MailMerge.eval('HeLlO WoRlD', 'MAILMERGE Foo \\* FirstCap MERGEFORMAT'), 'Hello world')
-        self.assertEqual(MailMerge.eval('HeLlO WoRlD', 'MAILMERGE Foo \\* Caps MERGEFORMAT'), 'Hello World')
+        self.assertEqual(MailMerge.eval('HeLlO WoRlD', code('MERGEFIELD Foo \\* Upper MERGEFORMAT')), 'HELLO WORLD')
+        self.assertEqual(MailMerge.eval('HELLO WORLD', code('MERGEFIELD Foo \\* Lower MERGEFORMAT')), 'hello world')
+        self.assertEqual(MailMerge.eval('HeLlO WoRlD', code(
+            'MERGEFIELD Foo \\* Lower \\* Upper MERGEFORMAT')), 'HELLO WORLD')
+        self.assertEqual(MailMerge.eval('HeLlO WoRlD', code('MERGEFIELD Foo \\* FirstCap MERGEFORMAT')), 'Hello world')
+        self.assertEqual(MailMerge.eval('HeLlO WoRlD', code('MERGEFIELD Foo \\* Caps MERGEFORMAT')), 'Hello World')
 
     def test_parse_chained(self):
-        self.assertEqual(MailMerge.eval(self.today, 'MAILMERGE Foo \\* Upper'), self.today.strftime('%x %X').upper())
-        self.assertEqual(MailMerge.eval(self.today, 'MAILMERGE Foo \\@ "MMMM" \\* Upper'), self.today.strftime('%B').upper())
+        self.assertEqual(MailMerge.eval(self.today, code('MERGEFIELD Foo \\* Upper')),
+                         self.today.strftime('%x %X').upper())
+        self.assertEqual(MailMerge.eval(self.today, code('MERGEFIELD Foo \\@ "MMMM" \\* Upper')),
+                         self.today.strftime('%B').upper())
+
+    def test_eval_if(self):
+        # Simple equality
+        # self.assertEqual(MailMerge.eval())
+        self.assertEqual(MailMerge.eval(
+            '', code('IF Foo = "Bar" "Yes" "No" \\* MERGEFORMAT'), context={'Foo': 'Bar'}), 'Yes')
+        self.assertEqual(MailMerge.eval(
+            '', code('IF Foo <> "Bar" "Yes" "No" \\* MERGEFORMAT'), context={'Foo': 'Bar'}), 'No')
+        self.assertEqual(MailMerge.eval(
+            '', code('IF Foo <> 123 "Yes" "No" \\* MERGEFORMAT'), context={'Foo': 123}), 'No')
+        self.assertEqual(MailMerge.eval(
+            '', code('IF Foo > 123 "Yes" "No" \\* MERGEFORMAT'), context={'Foo': 123}), 'No')
+        self.assertEqual(MailMerge.eval(
+            '', code('IF Foo >= 123 "Yes" "No" \\* MERGEFORMAT'), context={'Foo': 123}), 'Yes')
+        self.assertEqual(MailMerge.eval(
+            '', code('IF Foo < 123 "Yes" "No" \\* MERGEFORMAT'), context={'Foo': 123}), 'No')
+        self.assertEqual(MailMerge.eval(
+            '', code('IF Foo <= 123 "Yes" "No" \\* MERGEFORMAT'), context={'Foo': 123}), 'Yes')
+
+        self.assertEqual(MailMerge.eval('', code('IF Gender = "M*" "Yes" "No" \\* MERGEFORMAT'),
+                                        context={'Gender': 'Man'}), 'Yes')
+        self.assertEqual(MailMerge.eval('', code('IF Gender <> "M*" "Yes" "No" \\* MERGEFORMAT'),
+                                        context={'Gender': 'Man'}), 'No')
+        self.assertEqual(MailMerge.eval('', code('IF Gender = "?oma*" "Yes" "No" \\* MERGEFORMAT'),
+                                        context={'Gender': 'Woman'}), 'Yes')
+        self.assertEqual(MailMerge.eval('', code('IF Gender = "?oma*" "Yes" "No" \\* MERGEFORMAT'),
+                                        context={'Gender': 'Xom'}), 'No')
+        self.assertEqual(MailMerge.eval('', code('IF Gender = "?oma*" "Yes" "No" \\* MERGEFORMAT'),
+                                        context={'Gender': 'Xomannnnn'}), 'Yes')
+
+        self.assertEqual(MailMerge.eval(
+            '', code('IF Foo = Foo "This is a long answer" "Nope" \\* MERGEFORMAT'), context={}), 'This is a long answer')
+        self.assertEqual(MailMerge.eval(
+            '', code('IF Foo <> Foo "This is a long answer" "N o p e" \\* MERGEFORMAT'), context={}), 'N o p e')
