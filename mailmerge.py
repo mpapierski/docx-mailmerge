@@ -7,7 +7,7 @@ from lxml.etree import Element
 from lxml import etree
 from zipfile import ZipFile, ZIP_DEFLATED
 import shlex
-
+import json
 
 NAMESPACES = {
     'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
@@ -51,10 +51,12 @@ class MailMerge(object):
                             continue
                         instr = child.attrib['{%(w)s}instr' % NAMESPACES]
 
-                        name = self.__parse_instr(instr)
+                        args = self.__parse_field(instr)
+                        name = self.__parse_instr(args)
+                        print('args', args)
                         if name is None:
-                            continue
-                        parent[idx] = Element('MergeField', name=name, data=instr)
+                            name = ''
+                        parent[idx] = Element('MergeField', kind=args[0].upper(), name=name, data=json.dumps(args))
 
                 for parent in part.findall('.//{%(w)s}instrText/../..' % NAMESPACES):
                     children = list(parent)
@@ -83,11 +85,11 @@ class MailMerge(object):
                         for instr in instr_elements[1:]:
                             instr.getparent().remove(instr)
 
-                        name = self.__parse_instr(instr_text)
+                        args = self.__parse_field(instr_text)
+                        name = self.__parse_instr(args)
                         if name is None:
-                            continue
-
-                        parent[idx_begin] = Element('MergeField', name=name, data=instr_text)
+                            name = ''
+                        parent[idx_begin] = Element('MergeField', kind=args[0].upper(), name=name, data=json.dumps(args))
 
                         # use this so we know *where* to put the replacement
                         instr_elements[0].tag = 'MergeText'
@@ -112,8 +114,12 @@ class MailMerge(object):
             raise
 
     @classmethod
-    def __parse_instr(cls, instr):
-        args = shlex.split(instr, posix=False)
+    def __parse_field(cls, instr):
+        return shlex.split(instr, posix=False)
+
+    @classmethod
+    def __parse_instr(cls, args):
+        # print('parse', args)
         if args[0] != 'MERGEFIELD':
             return None
         name = args[1]
@@ -147,7 +153,7 @@ class MailMerge(object):
             parts = self.parts.values()
         fields = set()
         for part in parts:
-            for mf in part.findall('.//MergeField'):
+            for mf in part.findall('.//MergeField[@kind="MERGEFIELD"]'):
                 fields.add(mf.attrib['name'])
         return fields
 
@@ -361,13 +367,15 @@ class MailMerge(object):
         return output
 
     @classmethod
-    def eval(cls, data, code):
-        params = shlex.split(code, posix=False)
+    def eval(cls, data, params):
+        print('eval', data, params)
         params = params[2:]
         evaluated = False
         for i, param in enumerate(params):
+            print('param', param)
             if param == '\\@':
                 data = cls.eval_strftime(data, params[i + 1])
+                print('evaluated', data)
                 evaluated = True
             elif param == '\\*':
                 data = cls.eval_star(data, params[i + 1])
@@ -383,7 +391,8 @@ class MailMerge(object):
         for mf in part.findall('.//MergeField[@name="%s"]' % field):
             children = list(mf)
             # Original code is saved in "data" attribute
-            instr = mf.attrib['data']
+            instr = json.loads(mf.attrib['data'])
+
             mf.clear()  # clear away the attributes
             mf.tag = '{%(w)s}r' % NAMESPACES
             mf.extend(children)
