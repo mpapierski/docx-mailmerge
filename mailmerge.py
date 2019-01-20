@@ -91,7 +91,8 @@ class MailMerge(object):
                         name = self.__parse_instr(args)
                         if name is None:
                             name = ''
-                        parent[idx_begin] = Element('MergeField', kind=args[0].upper(), name=name, data=json.dumps(args))
+                        parent[idx_begin] = Element('MergeField', kind=args[0].upper(),
+                                                    name=name, data=json.dumps(args))
 
                         # use this so we know *where* to put the replacement
                         instr_elements[0].tag = 'MergeText'
@@ -170,58 +171,58 @@ class MailMerge(object):
         - oddPage_section : oddPage section break. section begins on the next odd-numbered page, leaving the next even page blank if necessary.
         """
 
-        #TYPE PARAM CONTROL AND SPLIT
-        valid_separators = {'page_break', 'column_break', 'textWrapping_break', 'continuous_section', 'evenPage_section', 'nextColumn_section', 'nextPage_section', 'oddPage_section'}
+        # TYPE PARAM CONTROL AND SPLIT
+        valid_separators = {'page_break', 'column_break', 'textWrapping_break', 'continuous_section',
+                            'evenPage_section', 'nextColumn_section', 'nextPage_section', 'oddPage_section'}
         if not separator in valid_separators:
             raise ValueError("Invalid separator argument")
         type, sepClass = separator.split("_")
-  
 
-        #GET ROOT - WORK WITH DOCUMENT
+        # GET ROOT - WORK WITH DOCUMENT
         for part in self.parts.values():
             root = part.getroot()
             tag = root.tag
             if tag == '{%(w)s}ftr' % NAMESPACES or tag == '{%(w)s}hdr' % NAMESPACES:
                 continue
-		
+
             if sepClass == 'section':
 
-                #FINDING FIRST SECTION OF THE DOCUMENT
+                # FINDING FIRST SECTION OF THE DOCUMENT
                 firstSection = root.find("w:body/w:p/w:pPr/w:sectPr", namespaces=NAMESPACES)
                 if firstSection == None:
                     firstSection = root.find("w:body/w:sectPr", namespaces=NAMESPACES)
-			
-                #MODIFY TYPE ATTRIBUTE OF FIRST SECTION FOR MERGING
+
+                # MODIFY TYPE ATTRIBUTE OF FIRST SECTION FOR MERGING
                 nextPageSec = deepcopy(firstSection)
                 for child in nextPageSec:
-                #Delete old type if exist
+                    # Delete old type if exist
                     if child.tag == '{%(w)s}type' % NAMESPACES:
                         nextPageSec.remove(child)
-                #Create new type (def parameter)
-                newType = etree.SubElement(nextPageSec, '{%(w)s}type'  % NAMESPACES)
-                newType.set('{%(w)s}val'  % NAMESPACES, type)
+                # Create new type (def parameter)
+                newType = etree.SubElement(nextPageSec, '{%(w)s}type' % NAMESPACES)
+                newType.set('{%(w)s}val' % NAMESPACES, type)
 
-                #REPLACING FIRST SECTION
+                # REPLACING FIRST SECTION
                 secRoot = firstSection.getparent()
                 secRoot.replace(firstSection, nextPageSec)
 
-            #FINDING LAST SECTION OF THE DOCUMENT
+            # FINDING LAST SECTION OF THE DOCUMENT
             lastSection = root.find("w:body/w:sectPr", namespaces=NAMESPACES)
 
-            #SAVING LAST SECTION
+            # SAVING LAST SECTION
             mainSection = deepcopy(lastSection)
             lsecRoot = lastSection.getparent()
             lsecRoot.remove(lastSection)
 
-            #COPY CHILDREN ELEMENTS OF BODY IN A LIST
+            # COPY CHILDREN ELEMENTS OF BODY IN A LIST
             childrenList = root.findall('w:body/*', namespaces=NAMESPACES)
 
-            #DELETE ALL CHILDREN OF BODY
+            # DELETE ALL CHILDREN OF BODY
             for child in root:
                 if child.tag == '{%(w)s}body' % NAMESPACES:
                     child.clear()
 
-            #REFILL BODY AND MERGE DOCS - ADD LAST SECTION ENCAPSULATED OR NOT
+            # REFILL BODY AND MERGE DOCS - ADD LAST SECTION ENCAPSULATED OR NOT
             lr = len(replacements)
             lc = len(childrenList)
             parts = []
@@ -239,13 +240,13 @@ class MailMerge(object):
                                 else:
                                     if sepClass == 'section':
                                         intSection = deepcopy(mainSection)
-                                        p   = etree.SubElement(child, '{%(w)s}p'  % NAMESPACES)
-                                        pPr = etree.SubElement(p, '{%(w)s}pPr'  % NAMESPACES)
+                                        p = etree.SubElement(child, '{%(w)s}p' % NAMESPACES)
+                                        pPr = etree.SubElement(p, '{%(w)s}pPr' % NAMESPACES)
                                         pPr.append(intSection)
                                         parts.append(p)
                                     elif sepClass == 'break':
-                                        pb   = etree.SubElement(child, '{%(w)s}p'  % NAMESPACES)
-                                        r = etree.SubElement(pb, '{%(w)s}r'  % NAMESPACES)
+                                        pb = etree.SubElement(child, '{%(w)s}p' % NAMESPACES)
+                                        r = etree.SubElement(pb, '{%(w)s}r' % NAMESPACES)
                                         nbreak = Element('{%(w)s}br' % NAMESPACES)
                                         nbreak.attrib['{%(w)s}type' % NAMESPACES] = type
                                         r.append(nbreak)
@@ -253,13 +254,13 @@ class MailMerge(object):
                     self.merge(parts, **repl)
 
     def merge_pages(self, replacements):
-         """
-         Deprecated method.
-         """
-         warnings.warn("merge_pages has been deprecated in favour of merge_templates",
+        """
+        Deprecated method.
+        """
+        warnings.warn("merge_pages has been deprecated in favour of merge_templates",
                       category=DeprecationWarning,
-                      stacklevel=2)         
-         self.merge_templates(replacements, "page_break")
+                      stacklevel=2)
+        self.merge_templates(replacements, "page_break")
 
     def merge(self, parts=None, **replacements):
 
@@ -411,7 +412,7 @@ class MailMerge(object):
                     return operator.ne(lhs, rhs)
                 else:
                     return translate(rhs)(lhs) is None
-            
+
             operators = {
                 '=': eq,
                 '<>': ne,
@@ -425,7 +426,7 @@ class MailMerge(object):
             if op is None:
                 # Unknown operator
                 return ''
-            
+
             def strip_quotes(data):
                 if data and data[0] == '"' and data[-1] == '"':
                     return data[1:-1]
@@ -443,9 +444,9 @@ class MailMerge(object):
 
             # RHS *can* be an integer
             if re.match(r'^-?\d+$', rhs):
-                rhs = int(rhs) 
+                rhs = int(rhs)
 
-            # Use the operator to extract a valid text           
+            # Use the operator to extract a valid text
             if op(lhs, rhs):
                 return if_true
             else:
