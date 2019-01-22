@@ -11,7 +11,7 @@ def code(text):
 class TestEval(TestCase):
 
     def setUp(self):
-        self.today = datetime(2018, 7, 1, 10, 12, 54, 0)
+        self.today = datetime(2018, 7, 1, 9, 2, 1, 6)
 
     def test_year(self):
         self.assertEqual(MailMerge.eval_strftime(self.today, 'y'), '2018')
@@ -32,6 +32,19 @@ class TestEval(TestCase):
         self.assertEqual(MailMerge.eval_strftime(self.today, 'd'), '1')
         self.assertEqual(MailMerge.eval_strftime(self.today, 'dd'), '01')
         self.assertEqual(MailMerge.eval_strftime(self.today, 'dddd'), self.today.strftime('%A'))
+
+    def test_hours(self):
+        self.assertEqual(MailMerge.eval_strftime(self.today, 'HH'), '09')
+        self.assertEqual(MailMerge.eval_strftime(self.today, 'H'), '9')
+
+    def test_minutes(self):
+        self.assertEqual(self.today.minute, 2)
+        self.assertEqual(MailMerge.eval_strftime(self.today, 'mm'), '02')
+        self.assertEqual(MailMerge.eval_strftime(self.today, 'm'), '2')
+
+    def test_seconds(self):
+        self.assertEqual(MailMerge.eval_strftime(self.today, 'ss'), '01')
+        self.assertEqual(MailMerge.eval_strftime(self.today, 's'), '1')
 
     def test_strftime_none(self):
         self.assertEqual(MailMerge.eval_strftime(None, 'd'), '')

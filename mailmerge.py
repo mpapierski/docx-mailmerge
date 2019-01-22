@@ -320,6 +320,30 @@ class MailMerge(object):
                     # Hack for non-zero padded month
                     res += str(dt.day)
                     pattern = pattern[1:]
+                # Hours
+                elif pattern[:2] == 'HH':
+                    res += '%H'
+                    pattern = pattern[2:]
+                elif pattern[:1] == 'H':
+                    # Hack for non-zero padded month
+                    res += str(dt.hour)
+                    pattern = pattern[1:]
+                # Minutes
+                elif pattern[:2] == 'mm':
+                    res += '%M'
+                    pattern = pattern[2:]
+                elif pattern[:1] == 'm':
+                    # Hack for non-zero padded month
+                    res += str(dt.minute)
+                    pattern = pattern[1:]
+                # Seconds
+                elif pattern[:2] == 'ss':
+                    res += '%S'
+                    pattern = pattern[2:]
+                elif pattern[:1] == 's':
+                    # Hack for non-zero padded month
+                    res += str(dt.second)
+                    pattern = pattern[1:]
                 else:
                     break
             return res
@@ -327,7 +351,7 @@ class MailMerge(object):
         if fmt[0] == '"' and fmt[-1] == '"':
             fmt = fmt[1:-1]
 
-        fmt = re.sub(r'[dmMyY]+', repl, fmt)
+        fmt = re.sub(r'[dmMyYHs]+', repl, fmt)
         try:
             return dt.strftime(fmt)
         except AttributeError:
@@ -340,7 +364,7 @@ class MailMerge(object):
         # consistent behaviour.
         output = None
         if isinstance(data, (datetime, )):
-            # i.e. 08/16/1988 13:42
+            # i.e. 08/16/1988   13:42
             output = data.strftime('%x %X')
         elif isinstance(data, (date, )):
             # i.e. 08/16/1988
