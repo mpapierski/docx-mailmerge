@@ -393,11 +393,6 @@ class MailMerge(object):
         return output
 
     @classmethod
-    def eval_if(cls, expr, context):
-        assert context is not None
-        return 'Foo'
-
-    @classmethod
     def eval_hash(cls, data, option):
         if option and option[0] == '"' and option[-1] == '"':
             option = option[1:-1]
