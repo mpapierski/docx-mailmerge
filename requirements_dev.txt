@@ -1,3 +1,4 @@
 tox
 flake8
 wheel
+babel==2.6.0

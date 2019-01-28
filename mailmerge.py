@@ -10,6 +10,7 @@ import shlex
 import json
 import operator
 from functools import lru_cache
+from babel.numbers import format_currency
 
 
 NAMESPACES = {
@@ -397,6 +398,12 @@ class MailMerge(object):
         return 'Foo'
 
     @classmethod
+    def eval_hash(cls, data, option):
+        if option and option[0] == '"' and option[-1] == '"':
+            option = option[1:-1]
+        return format_currency(data, 'PLN', option, locale='pl_PL')
+
+    @classmethod
     def eval(cls, data, params, context=None):
         if context is None:
             context = {}
@@ -408,6 +415,9 @@ class MailMerge(object):
                     evaluated = True
                 elif param == '\\*':
                     data = cls.eval_star(data, params[i + 1])
+                    evaluated = True
+                elif param == '\\#':
+                    data = cls.eval_hash(data, params[i + 1])
                     evaluated = True
         elif params[0].upper() == 'IF':
             lhs, op, rhs, if_true, if_false = params[1:6]

@@ -2,6 +2,7 @@ from unittest import TestCase
 from datetime import datetime
 from mailmerge import MailMerge
 import shlex
+from decimal import Decimal
 
 
 def code(text):
@@ -79,6 +80,12 @@ class TestEval(TestCase):
                          self.today.strftime('%x %X').upper())
         self.assertEqual(MailMerge.eval(self.today, code('MERGEFIELD Foo \\@ "MMMM" \\* Upper')),
                          self.today.strftime('%B').upper())
+
+    def test_eval_currency(self):
+        self.assertEqual(MailMerge.eval(Decimal(1599.99), code('MERGEFIELD Price \\# "#,##0.00¤"')), '1\xa0599,99zł')
+
+    def test_eval_currency(self):
+        self.assertEqual(MailMerge.eval(Decimal(1599.99), code('MERGEFIELD Price \\# ""')), '1\xa0599,99\xa0zł')
 
     def test_eval_if(self):
         # Simple equality
