@@ -86,6 +86,7 @@ class TestEval(TestCase):
 
     def test_eval_currency(self):
         self.assertEqual(MailMerge.eval(Decimal(1599.99), code('MERGEFIELD Price \\# ""')), '1\xa0599,99\xa0zł')
+        self.assertEqual(MailMerge.eval(Decimal(1599.99), code('MERGEFIELD Price \\# "#,##0.00 ¤"')), '1\xa0599,99 zł')
 
     def test_eval_if(self):
         # Simple equality
