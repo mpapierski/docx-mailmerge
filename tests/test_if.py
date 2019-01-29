@@ -2,25 +2,14 @@ import unittest
 import tempfile
 from os import path
 from lxml import etree
+import subprocess
 
 from mailmerge import MailMerge, NAMESPACES
 from tests.utils import EtreeMixin
-from functools import lru_cache
-import subprocess
+from tests.utils import has_soffice
 
 
-@lru_cache()
-def _has_soffice():
-    try:
-        stdout = subprocess.check_output(['which', 'soffice'])
-        stdout = stdout.decode('utf-8')
-        lines = stdout.splitlines()
-        return lines[0]
-    except subprocess.CalledProcessError:
-        return None
-
-
-@unittest.skipIf(_has_soffice() is None, 'soffice executable not found in $PATH')
+@unittest.skipIf(has_soffice() is None, 'soffice executable not found in $PATH')
 class IfTest(EtreeMixin, unittest.TestCase):
     def test_man(self):
         with MailMerge(path.join(path.dirname(__file__), 'test_if.docx')) as document:

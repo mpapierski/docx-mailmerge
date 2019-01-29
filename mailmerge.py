@@ -506,7 +506,7 @@ class MailMerge(object):
 
             nodes = []
             # preserve new lines in replacement text
-            text = self.eval(text, instr, context=context)
+            text = self.eval(context[field], instr, context=context)
             text_parts = text.replace('\r', '').split('\n')
             for i, text_part in enumerate(text_parts):
                 text_node = Element('{%(w)s}t' % NAMESPACES)

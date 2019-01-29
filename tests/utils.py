@@ -1,3 +1,7 @@
+from functools import lru_cache
+import subprocess
+
+
 class EtreeMixin(object):
     def assert_equal_tree(self, lhs, rhs):
         """
@@ -17,3 +21,14 @@ def get_document_body_part(document):
             return part
 
     raise AssertionError("main document body not found in document.parts")
+
+
+@lru_cache()
+def has_soffice():
+    try:
+        stdout = subprocess.check_output(['which', 'soffice'])
+        stdout = stdout.decode('utf-8')
+        lines = stdout.splitlines()
+        return lines[0]
+    except subprocess.CalledProcessError:
+        return None
